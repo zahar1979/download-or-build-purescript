@@ -242,6 +242,11 @@ module.exports = function downloadOrBuildPurescript(dir, options) {
 
     prepareWrite(binPath).catch(err => {
       binaryPathError = err;
+
+      if (observer.closed) {
+        return;
+      }
+
       completeHead();
     });
 

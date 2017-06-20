@@ -35,7 +35,7 @@ const server = createServer(({url}, res) => {
   tar.finalize();
   tar.pipe(createGzip()).pipe(res);
 }).listen(3018, () => test('downloadOrBuildPurescript()', async t => {
-  t.plan(66);
+  t.plan(67);
 
   await rmfr(join(__dirname, 'tmp*'), {glob: true});
   await writeFileAtomically(join(__dirname, 'tmpfile'), '');
@@ -66,25 +66,25 @@ const server = createServer(({url}, res) => {
 
       const downloadBinary = values.next().value;
 
-      t.strictEqual(
+      t.equal(
         downloadBinary.id,
         'download-binary',
         'should send `download-binary` progress.'
       );
 
-      t.strictEqual(
+      t.equal(
         downloadBinary.entry.header.name,
         DEFAULT_NAME,
         'should include `entry` property to `download-binary` progress.'
       );
 
-      t.strictEqual(
+      t.equal(
         downloadBinary.response.headers.server,
         'AmazonS3',
         'should include `response` property to `download-binary` progress.'
       );
 
-      t.strictEqual(
+      t.equal(
         parse(downloadBinary.response.url).protocol,
         'https:',
         'should use HTTPS.'
@@ -113,14 +113,14 @@ const server = createServer(({url}, res) => {
         'should send no progress after the prebuilt binary is successfully downloaded.'
       );
 
-      t.strictEqual(
+      t.equal(
         path,
         join(tmpDir, DEFAULT_NAME),
         'should pass the downloaded binary path to `onComplete` callback.'
       );
 
       getStdout(path, ['--version']).then(version => {
-        t.strictEqual(
+        t.equal(
           version,
           '0.11.5',
           'should download the binary correctly.'
@@ -141,7 +141,7 @@ const server = createServer(({url}, res) => {
       }
 
       if (id === 'download-binary:fail') {
-        t.strictEqual(
+        t.equal(
           error.message,
           'Invalid tar header. Maybe the tar is corrupted or it needs to be gunzipped?',
           'should send `download-binary:fail` progress when it fails to download a binary.'
@@ -151,13 +151,13 @@ const server = createServer(({url}, res) => {
     error(err) {
       closeServer();
 
-      t.strictEqual(
+      t.equal(
         err.message,
         'stdout maxBuffer exceeded',
         'should fail when the `stack` command does not work correctly..'
       );
 
-      t.strictEqual(
+      t.equal(
         err.id,
         'check-stack',
         'should add `check-stack` id to the error when the `stack` command is not available.'
@@ -189,7 +189,7 @@ const server = createServer(({url}, res) => {
           'should resolve the absolute path of `stack` binary when the prebuilt binary is broken.'
         );
 
-        t.strictEqual(
+        t.equal(
           version,
           '1.4.0',
           'should check the version of `stack` command when the prebuilt binary is broken.'
@@ -221,7 +221,7 @@ const server = createServer(({url}, res) => {
     platform: differentPlatform
   }).subscribe({
     error({id}) {
-      t.strictEqual(
+      t.equal(
         id,
         'download-binary',
         'should skip fallback steps when the `platform` option is different from `process.platform`.'
@@ -255,13 +255,22 @@ const server = createServer(({url}, res) => {
       }
     },
     error({code}) {
-      t.strictEqual(
+      t.equal(
         code,
         'EEXIST',
         'should fail when it cannot create a directory to the target path.'
       );
     }
   });
+
+  downloadOrBuildPurescript(__filename).subscribe({
+    next({id}) {
+      if (id === 'head') {
+        t.pass('should start `head` step even if the download is immediately canceled.');
+      }
+    },
+    error: t.fail
+  }).unsubscribe();
 
   pretendPlatform('aix');
 
@@ -295,7 +304,7 @@ const server = createServer(({url}, res) => {
       }
 
       if (id === 'download-source' && entry.header.name === 'src/') {
-        t.strictEqual(
+        t.equal(
           entry.header.type,
           'directory',
           'should fire the status of each entry in the PureScript source.'
@@ -324,7 +333,7 @@ const server = createServer(({url}, res) => {
 
       if (id === 'build:complete') {
         getStdout(join(anotherTmpDir, 'purs.bin'), ['--version']).then(version => {
-          t.strictEqual(
+          t.equal(
             version,
             '0.11.5',
             'should build the binary when the prebuilt binary is not provided for the current platform.'
@@ -345,7 +354,7 @@ const server = createServer(({url}, res) => {
     },
     error: t.fail,
     complete(path) {
-      t.strictEqual(
+      t.equal(
         path,
         join(anotherTmpDir, 'purs.bin'),
         'should pass the built binary path to `onComplete` callback.'
@@ -363,7 +372,7 @@ const server = createServer(({url}, res) => {
         'should rename the binary built with `stack setup`.'
       );
 
-      t.strictEqual(
+      t.equal(
         id,
         'build',
         'should include `id` property to the error passed to `error` callback.'
@@ -375,7 +384,7 @@ const server = createServer(({url}, res) => {
 
   downloadOrBuildPurescript(__dirname, {rename: () => 'node_modules'}).subscribe({
     error(err) {
-      t.strictEqual(
+      t.equal(
         err.toString(),
         `Error: Tried to create a file as ${
           join(__dirname, 'node_modules')
@@ -387,7 +396,7 @@ const server = createServer(({url}, res) => {
 
   downloadOrBuildPurescript(new WeakSet()).subscribe({
     error(err) {
-      t.strictEqual(
+      t.equal(
         err.toString(),
         'TypeError: Expected a path where the PureScript binary will be installed, but got WeakSet {}.',
         'should fail when the first argument is not a string.'
@@ -397,7 +406,7 @@ const server = createServer(({url}, res) => {
 
   downloadOrBuildPurescript('').subscribe({
     error(err) {
-      t.strictEqual(
+      t.equal(
         err.toString(),
         'Error: Expected a path where the PureScript binary will be installed, ' +
         'but got \'\' (empty string).',
@@ -408,7 +417,7 @@ const server = createServer(({url}, res) => {
 
   downloadOrBuildPurescript('.', ['H', 'i']).subscribe({
     error(err) {
-      t.strictEqual(
+      t.equal(
         err.toString(),
         'TypeError: Expected an object to specify options of install-purescript, ' +
         'but got [ \'H\', \'i\' ] (array).',
@@ -419,7 +428,7 @@ const server = createServer(({url}, res) => {
 
   downloadOrBuildPurescript('.', {platform: 'android'}).subscribe({
     error({code}) {
-      t.strictEqual(
+      t.equal(
         code,
         'ERR_UNSUPPORTED_PLATFORM',
         'should fail when the prebuilt `purs` is not provided for the specified platform.'
@@ -429,7 +438,7 @@ const server = createServer(({url}, res) => {
 
   downloadOrBuildPurescript('.', {rename: String.fromCharCode(0)}).subscribe({
     error(err) {
-      t.strictEqual(
+      t.equal(
         err.toString(),
         'TypeError: `rename` option must be a function, but \'\\u0000\' (string) was provided.',
         'should fail when `rename` option is not a function.'
@@ -439,7 +448,7 @@ const server = createServer(({url}, res) => {
 
   downloadOrBuildPurescript('.', {rename: originalName => originalName.length}).subscribe({
     error(err) {
-      t.strictEqual(
+      t.equal(
         err.toString(),
         `TypeError: Expected \`rename\` option to be a function that returns a string, but returned ${
           DEFAULT_NAME.length
@@ -451,7 +460,7 @@ const server = createServer(({url}, res) => {
 
   downloadOrBuildPurescript('.', {rename: () => ''}).subscribe({
     error(err) {
-      t.strictEqual(
+      t.equal(
         err.toString(),
         'Error: Expected `rename` option to be a function that returns a new binary name, ' +
         'but returned \'\' (empty string).',
@@ -462,7 +471,7 @@ const server = createServer(({url}, res) => {
 
   downloadOrBuildPurescript('.', {args: new Uint16Array()}).subscribe({
     error(err) {
-      t.strictEqual(
+      t.equal(
         err.toString(),
         'TypeError: Expected `args` option to be an array of user defined arguments ' +
         'passed to `stack setup` and `stack install`, but got a non-array value Uint16Array [  ].',
@@ -473,7 +482,7 @@ const server = createServer(({url}, res) => {
 
   downloadOrBuildPurescript('.', {map: NaN}).subscribe({
     error(err) {
-      t.strictEqual(
+      t.equal(
         err.toString(),
         'Error: `map` option is not supported, but NaN was provided to it.',
         'should fail when it takes an unsupported option.'
