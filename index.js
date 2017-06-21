@@ -31,6 +31,10 @@ function addId(obj, id) {
   });
 }
 
+function whichExecutor(resolvePromise) {
+  which('stack', (_, stackPath) => resolvePromise(stackPath));
+}
+
 const unsupportedOptions = new Set([
   'map',
   'revision'
@@ -149,7 +153,7 @@ module.exports = function downloadOrBuildPurescript(dir, options) {
     });
 
     Promise.all([
-      new Promise(resolvePromise => which('stack', (_, stackPath) => resolvePromise(stackPath))),
+      new Promise(whichExecutor),
       spawnStack(['--numeric-version'], options)
     ]).then(results => {
       stackCheckResult = {
