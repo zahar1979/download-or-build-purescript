@@ -80,7 +80,7 @@ module.exports = function downloadOrBuildPurescript(dir, options) {
     const buildOptions = Object.assign({revision: `v${version}`}, options);
 
     // to validate build-purescript arguments beforehand
-    buildPurescript(__dirname, buildOptions).subscribe({
+    buildPurescript(__filename, buildOptions).subscribe({
       error(err) {
         observer.error(err);
       }
