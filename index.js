@@ -276,3 +276,8 @@ Object.defineProperty(module.exports, 'defaultVersion', {
   value: downloadPurescript.defaultVersion,
   enumerable: true
 });
+
+Object.defineProperty(module.exports, 'supportedBuildFlags', {
+  value: buildPurescript.supportedBuildFlags,
+  enumerable: true
+});

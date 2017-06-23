@@ -30,7 +30,7 @@
     "observable"
   ],
   "dependencies": {
-    "build-purescript": "^0.0.10-5",
+    "build-purescript": "^0.0.10-6",
     "download-purescript": "^0.3.0-4",
     "execa": "^0.7.0",
     "feint": "1.0.1",

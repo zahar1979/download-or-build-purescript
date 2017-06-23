@@ -490,3 +490,21 @@ const server = createServer(({url}, res) => {
     }
   });
 }));
+
+test('downloadOrBuildPurescript.supportedBuildFlags', t => {
+  t.ok(
+    downloadOrBuildPurescript.supportedBuildFlags.has('--fast'),
+    'should be a Set of build-only flags.'
+  );
+
+  t.throws(() => {
+    downloadOrBuildPurescript.supportedBuildFlags = 1;
+  }, /Cannot assign to read only property/, 'should be unoverwritable.');
+
+  t.ok(
+    Object.keys(downloadOrBuildPurescript).includes('supportedBuildFlags'),
+    'should be enumerable.'
+  );
+
+  t.end();
+});
