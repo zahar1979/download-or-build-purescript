@@ -113,7 +113,7 @@ module.exports = function downloadOrBuildPurescript(dir, options) {
       observer.error(err);
     }
 
-    const startBuildIfNeeded = feint(() => {
+    const startBuild = feint(() => {
       if (stackCheckResult.id !== 'check-stack') {
         sendError(stackCheckResult, 'check-stack');
         return;
@@ -151,6 +151,14 @@ module.exports = function downloadOrBuildPurescript(dir, options) {
         }
       }));
     });
+
+    const startBuildIfNeeded = () => {
+      if (observer.closed) {
+        return;
+      }
+
+      startBuild();
+    };
 
     Promise.all([
       new Promise(whichExecutor),
