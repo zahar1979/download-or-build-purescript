@@ -12,7 +12,7 @@ const {readdirSync} = require('fs');
 const {spwan} = require('child_process');
 const downloadOrBuildPurescript = require('download-or-build-purescript');
 
-downloadOrBuildPurescript('./dest', {version: '0.11.4'}).subscribe({
+downloadOrBuildPurescript('./dest', {version: '0.11.6'}).subscribe({
   next(event) {
     if (event.id === 'head:complete') {
       console.log('✓ Prebuilt binary exists.');
@@ -32,7 +32,7 @@ downloadOrBuildPurescript('./dest', {version: '0.11.4'}).subscribe({
   complete() {
     readdirSync('dest'); //=> ['purs']
     spwan('./dest/purs', ['--version'], (err, stdout) => {
-      stdout.toString(); //=> '0.11.4\n'
+      stdout.toString(); //=> '0.11.6\n'
     });
   }
 });

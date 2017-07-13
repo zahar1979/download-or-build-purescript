@@ -30,8 +30,8 @@
     "observable"
   ],
   "dependencies": {
-    "build-purescript": "^0.0.10-6",
-    "download-purescript": "^0.3.0-4",
+    "build-purescript": "^0.0.10-7",
+    "download-purescript": "^0.3.0-5",
     "execa": "^0.7.0",
     "feint": "1.0.1",
     "graceful-fs": "^4.1.11",
@@ -44,8 +44,8 @@
     "zen-observable": "^0.5.2"
   },
   "devDependencies": {
-    "@shinnn/eslint-config-node": "^4.0.0",
-    "eslint": "^4.1.1",
+    "@shinnn/eslint-config-node": "^4.0.2",
+    "eslint": "^4.2.0",
     "lodash": "^4.17.4",
     "nyc": "^11.0.3",
     "pretend-platform": "^2.0.0",
