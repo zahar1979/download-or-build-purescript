@@ -12,7 +12,7 @@ const {readdirSync} = require('fs');
 const {spwan} = require('child_process');
 const downloadOrBuildPurescript = require('download-or-build-purescript');
 
-downloadOrBuildPurescript('./dest', {version: '0.11.6'}).subscribe({
+downloadOrBuildPurescript('./dest', {version: '0.11.7'}).subscribe({
   next(event) {
     if (event.id === 'head:complete') {
       console.log('✓ Prebuilt binary exists.');
@@ -345,6 +345,4 @@ downloadOrBuildPurescript('./dest', {
 
 ## License
 
-Copyright (c) 2017 [Shinnosuke Watanabe](https://github.com/shinnn)
-
-Licensed under [the MIT License](./LICENSE).
+[ISC License](./LICENSE) © 2017 Shinnosuke Watanabe
