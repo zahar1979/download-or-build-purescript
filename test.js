@@ -359,24 +359,28 @@ const server = createServer(({url}, res) => {
         join(anotherTmpDir, 'purs.bin'),
         'should pass the built binary path to `onComplete` callback.'
       );
-    }
-  });
 
-  downloadOrBuildPurescript(join(__dirname, 'tmp', 'dry_run'), {
-    args: ['--dry-run'],
-    rename: () => 'failed_bin'
-  }).subscribe({
-    error({id, message}) {
-      t.ok(
-        message.includes('no such file or directory, rename'),
-        'should rename the binary built with `stack setup`.'
-      );
+      pretendPlatform('sunos');
 
-      t.equal(
-        id,
-        'build',
-        'should include `id` property to the error passed to `error` callback.'
-      );
+      downloadOrBuildPurescript(join(__dirname, 'tmp', 'dry_run'), {
+        args: ['--dry-run'],
+        rename: () => 'failed_bin'
+      }).subscribe({
+        error({id, message}) {
+          t.ok(
+            message.includes('no such file or directory, rename'),
+            'should rename the binary built with `stack setup`.'
+          );
+
+          t.equal(
+            id,
+            'build',
+            'should include `id` property to the error passed to `error` callback.'
+          );
+        }
+      });
+
+      pretendPlatform('restore');
     }
   });
 
