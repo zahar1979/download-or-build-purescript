@@ -191,7 +191,7 @@ const server = createServer(({url}, res) => {
 
         t.equal(
           version,
-          '1.5.1',
+          process.env.APPVEYOR ? '1.5.1' : '1.6.0.20171022',
           'should check the version of `stack` command when the prebuilt binary is broken.'
         );
 
