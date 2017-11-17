@@ -122,7 +122,7 @@ const server = createServer(({url}, res) => {
       getStdout(path, ['--version']).then(version => {
         t.equal(
           version,
-          '0.11.6',
+          '0.11.7',
           'should download the binary correctly.'
         );
       }).catch(t.fail);
@@ -168,7 +168,7 @@ const server = createServer(({url}, res) => {
 
   downloadOrBuildPurescript(__dirname, {
     baseUrl: 'http://localhost:3018',
-    version: '0.11.5',
+    version: '0.11.6',
     rename(originalName) {
       return originalName.replace(DEFAULT_NAME, 'tmpfile');
     }
@@ -191,7 +191,7 @@ const server = createServer(({url}, res) => {
 
         t.equal(
           version,
-          '1.4.0',
+          '1.5.1',
           'should check the version of `stack` command when the prebuilt binary is broken.'
         );
 
@@ -335,7 +335,7 @@ const server = createServer(({url}, res) => {
         getStdout(join(anotherTmpDir, 'purs.bin'), ['--version']).then(version => {
           t.equal(
             version,
-            '0.11.6',
+            '0.11.7',
             'should build the binary when the prebuilt binary is not provided for the current platform.'
           );
         }).catch(t.fail);

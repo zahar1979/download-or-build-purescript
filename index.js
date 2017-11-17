@@ -100,10 +100,7 @@ module.exports = function downloadOrBuildPurescript(dir, options) {
     }
 
     if (binName.length === 0) {
-      throw new Error(
-        'Expected `rename` option to be a function that returns a new binary name, ' +
-        'but returned \'\' (empty string).'
-      );
+      throw new Error('Expected `rename` option to be a function that returns a new binary name, but returned \'\' (empty string).');
     }
 
     const binPath = resolve(dir, binName);
