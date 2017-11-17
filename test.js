@@ -35,7 +35,7 @@ const server = createServer(({url}, res) => {
   tar.finalize();
   tar.pipe(createGzip()).pipe(res);
 }).listen(3018, () => test('downloadOrBuildPurescript()', async t => {
-  t.plan(67);
+  t.plan(68);
 
   await rmfr(join(__dirname, 'tmp*'), {glob: true});
   await writeFileAtomically(join(__dirname, 'tmpfile'), '');
@@ -345,6 +345,15 @@ const server = createServer(({url}, res) => {
 
       if (logRegexps.length === 0) {
         return;
+      }
+
+      if (/^pipes-http-.*: copy\/register/.test(output)) {
+        t.pass('should copy and register the external dependencies.');
+        return;
+      }
+
+      if (typeof output === 'string' && output.endsWith('copy/register')) {
+        console.log(`${' '.repeat('ok ** '.length)}${output}`);
       }
 
       if (logRegexps[0].test(output)) {
