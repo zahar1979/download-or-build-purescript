@@ -4,6 +4,7 @@ shallow_clone: true
 skip_tags: true
 environment:
   PATH: "C:\\appveyor_stack_dir;%PATH%"
+  STACK_ROOT: C:\s
 install:
   - curl --silent --show-error --output stack.zip --location --insecure https://www.stackage.org/stack/windows-x86_64
   - 7z x stack.zip -oC:\appveyor_stack_dir stack.exe
