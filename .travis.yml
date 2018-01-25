@@ -7,7 +7,7 @@ addons:
     sources: llvm-toolchain-trusty-5.0
     packages: clang-5.0
 env: CC=clang-5.0 CXX=clang++-5.0
-before_install: curl -sSL https://github.com/commercialhaskell/stack/releases/download/v1.6.0.20171022/stack-1.6.0.20171022-linux-x86_64-static.tar.gz | tar xz --wildcards --strip-components=1 -C ~/bin '*/stack'
+before_install: curl -sSL https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/bin '*/stack'
 after_script: node_modules/.bin/nyc report --reporter=text-lcov | npx coveralls
 cache:
   directories: ~/.stack
