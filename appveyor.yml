@@ -10,5 +10,4 @@ install:
   - ps: Install-Product node Stable x64
   - npm install
 build: off
-before_test: stack --resolver=nightly-2017-09-10 setup > nul
 test_script: node test.js

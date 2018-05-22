@@ -4,6 +4,7 @@ const {createGzip} = require('zlib');
 const {createServer} = require('http');
 const {isAbsolute, join} = require('path');
 const {parse} = require('url');
+const {writeFile} = require('fs').promises;
 
 const downloadOrBuildPurescript = require('.');
 const feint = require('feint');
@@ -15,7 +16,6 @@ const readdirSorted = require('readdir-sorted');
 const rmfr = require('rmfr');
 const test = require('tape');
 const toExecutableName = require('to-executable-name');
-const writeFileAtomically = require('write-file-atomically');
 
 const DEFAULT_NAME = toExecutableName('purs');
 
@@ -38,7 +38,7 @@ const server = createServer(({url}, res) => {
 	t.plan(68);
 
 	await rmfr(join(__dirname, 'tmp*'), {glob: true});
-	await writeFileAtomically(join(__dirname, 'tmpfile'), '');
+	await writeFile(join(__dirname, 'tmpfile'), '');
 
 	const closeServer = feint(() => server.close());
 	const tmpDir = join(__dirname, 'tmp', 'normal');
@@ -122,7 +122,7 @@ const server = createServer(({url}, res) => {
 			getStdout(path, ['--version']).then(version => {
 				t.equal(
 					version,
-					'0.11.7',
+					'0.12.0',
 					'should download the binary correctly.'
 				);
 			}).catch(t.fail);
@@ -168,7 +168,7 @@ const server = createServer(({url}, res) => {
 
 	downloadOrBuildPurescript(__dirname, {
 		baseUrl: 'http://localhost:3018',
-		version: '0.11.6',
+		version: '0.11.7',
 		rename(originalName) {
 			return originalName.replace(DEFAULT_NAME, 'tmpfile');
 		}
@@ -176,7 +176,7 @@ const server = createServer(({url}, res) => {
 		next({error, id, path, version}) {
 			if (id === 'check-binary:fail') {
 				t.ok(
-					/spawn EACCES|not recognized as an internal or external command/.test(error.message),
+					/spawn .+ EACCES|not recognized as an internal or external command/.test(error.message),
 					'should send `check-binary:fail` progress when a downloaded binary is broken.'
 				);
 
@@ -191,7 +191,7 @@ const server = createServer(({url}, res) => {
 
 				t.equal(
 					version,
-					'1.6.3',
+					'1.7.1',
 					'should check the version of `stack` command when the prebuilt binary is broken.'
 				);
 
@@ -277,8 +277,8 @@ const server = createServer(({url}, res) => {
 	const anotherTmpDir = join(__dirname, 'tmp', 'built_binary');
 	const sourceDir = join(__dirname, 'tmp', '_');
 	const setupOutput = [];
-	const nums = Array.from({length: 20}, (v, k) => (k + 1) * 7);
-	const logRegexps = nums.map(num => new RegExp(`^\\[ *${num} of \\d+] Compiling Language`));
+	const nums = Array.from({length: 20}, (v, k) => Math.floor((k + 1) * 7.5));
+	const logRegexps = nums.map(num => new RegExp(`^\\[ *${num} of \\d+] Compiling (Language|Paths_purescript)`));
 
 	downloadOrBuildPurescript(anotherTmpDir, {
 		sourceDir,
@@ -335,7 +335,7 @@ const server = createServer(({url}, res) => {
 				getStdout(join(anotherTmpDir, 'purs.bin'), ['--version']).then(version => {
 					t.equal(
 						version,
-						'0.11.7',
+						'0.12.0',
 						'should build the binary when the prebuilt binary is not provided for the current platform.'
 					);
 				}).catch(t.fail);
@@ -357,7 +357,7 @@ const server = createServer(({url}, res) => {
 			}
 
 			if (logRegexps[0].test(output)) {
-				t.pass(`should send the output of \`stack install\` log (${(nums.shift() / 1.4).toFixed(0)} %).`);
+				t.pass(`should send the output of \`stack install\` log (${(nums.shift() / (7.5 * 0.2)).toFixed(0)} %).`);
 				logRegexps.shift();
 			}
 		},
@@ -407,11 +407,11 @@ const server = createServer(({url}, res) => {
 		}
 	});
 
-	downloadOrBuildPurescript(new WeakSet()).subscribe({
+	downloadOrBuildPurescript(new Set()).subscribe({
 		error(err) {
 			t.equal(
 				err.toString(),
-				'TypeError: Expected a path where the PureScript binary will be installed, but got WeakSet {}.',
+				'TypeError: Expected a path where the PureScript binary will be installed, but got Set {}.',
 				'should fail when the first argument is not a string.'
 			);
 		}
