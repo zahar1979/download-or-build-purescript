@@ -1,7 +1,7 @@
 'use strict';
 
-const inspect = require('util').inspect;
-const resolve = require('path').resolve;
+const {inspect} = require('util');
+const {resolve} = require('path');
 
 const buildPurescript = require('build-purescript');
 const downloadPurescript = require('download-purescript');
@@ -16,8 +16,7 @@ const prepareWrite = require('prepare-write');
 const spawnStack = require('spawn-stack');
 const which = require('which');
 
-const rename = fs.rename;
-
+const {rename} = fs;
 const DIR_ERROR = 'Expected a path where the PureScript binary will be installed';
 
 function getPlatformBinName(platform) {
@@ -41,8 +40,17 @@ const unsupportedOptions = new Set([
 ]);
 const initialBinName = getPlatformBinName(process.platform);
 
-module.exports = function downloadOrBuildPurescript(dir, options) {
+module.exports = function downloadOrBuildPurescript(...args) {
 	return new Observable(observer => {
+		const argLen = args.length;
+
+		if (argLen !== 1 && argLen !== 2) {
+			throw new RangeError(`Expected 1 or 2 arguments (<string>[, <Object>]), but got ${
+				argLen === 0 ? 'no' : argLen
+			} arguments.`);
+		}
+
+		const [dir, options = {}] = args;
 		const subscriptions = new Set();
 		let binaryPathError;
 		let stackCheckResult;
@@ -55,7 +63,7 @@ module.exports = function downloadOrBuildPurescript(dir, options) {
 			throw new Error(`${DIR_ERROR}, but got '' (empty string).`);
 		}
 
-		if (options !== undefined) {
+		if (argLen === 2) {
 			if (!isPlainObj(options)) {
 				throw new TypeError(`Expected an object to specify options of install-purescript, but got ${
 					inspectWithKind(options)
@@ -75,8 +83,6 @@ module.exports = function downloadOrBuildPurescript(dir, options) {
 					throw new Error(`\`${optionName}\` option is not supported, but ${inspect(val)} was provided to it.`);
 				}
 			}
-		} else {
-			options = {};
 		}
 
 		const version = options.version || downloadPurescript.defaultVersion;
@@ -160,11 +166,11 @@ module.exports = function downloadOrBuildPurescript(dir, options) {
 		Promise.all([
 			new Promise(whichExecutor),
 			spawnStack(['--numeric-version'], options)
-		]).then(results => {
+		]).then(([path, {stdout}]) => {
 			stackCheckResult = {
 				id: 'check-stack',
-				path: results[0],
-				version: results[1].stdout
+				path,
+				version: stdout
 			};
 
 			startBuildIfNeeded();

@@ -35,7 +35,7 @@ const server = createServer(({url}, res) => {
 	tar.finalize();
 	tar.pipe(createGzip()).pipe(res);
 }).listen(3018, () => test('downloadOrBuildPurescript()', async t => {
-	t.plan(68);
+	t.plan(70);
 
 	await rmfr(join(__dirname, 'tmp*'), {glob: true});
 	await writeFile(join(__dirname, 'tmpfile'), '');
@@ -499,6 +499,26 @@ const server = createServer(({url}, res) => {
 				err.toString(),
 				'Error: `map` option is not supported, but NaN was provided to it.',
 				'should fail when it takes an unsupported option.'
+			);
+		}
+	});
+
+	downloadOrBuildPurescript().subscribe({
+		error(err) {
+			t.equal(
+				err.toString(),
+				'RangeError: Expected 1 or 2 arguments (<string>[, <Object>]), but got no arguments.',
+				'should fail when it takes no arguments.'
+			);
+		}
+	});
+
+	downloadOrBuildPurescript('.', {}, '.').subscribe({
+		error(err) {
+			t.equal(
+				err.toString(),
+				'RangeError: Expected 1 or 2 arguments (<string>[, <Object>]), but got 3 arguments.',
+				'should fail when it takes too many arguments.'
 			);
 		}
 	});
