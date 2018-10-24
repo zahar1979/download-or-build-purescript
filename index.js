@@ -1,13 +1,13 @@
 'use strict';
 
+const {execFile} = require('child_process');
 const {inspect} = require('util');
-const {resolve} = require('path');
+const {rename} = require('fs');
+const {basename, join, resolve} = require('path');
 
 const buildPurescript = require('build-purescript');
 const downloadPurescript = require('download-purescript');
-const execa = require('execa');
 const feint = require('feint');
-const fs = require('graceful-fs');
 const inspectWithKind = require('inspect-with-kind');
 const isPlainObj = require('is-plain-obj');
 const Observable = require('zen-observable');
@@ -16,7 +16,6 @@ const prepareWrite = require('prepare-write');
 const spawnStack = require('spawn-stack');
 const which = require('which');
 
-const {rename} = fs;
 const DIR_ERROR = 'Expected a path where the PureScript binary will be installed';
 
 function getPlatformBinName(platform) {
@@ -30,12 +29,8 @@ function addId(obj, id) {
 	});
 }
 
-function whichExecutor(resolvePromise) {
-	which('stack', (_, stackPath) => resolvePromise(stackPath));
-}
-
 const unsupportedOptions = new Set([
-	'map',
+	'filter',
 	'revision'
 ]);
 const initialBinName = getPlatformBinName(process.platform);
@@ -52,8 +47,12 @@ module.exports = function downloadOrBuildPurescript(...args) {
 
 		const [dir, options = {}] = args;
 		const subscriptions = new Set();
+		const stackCheckResult = {
+			id: 'check-stack',
+			path: 'stack',
+			version: ''
+		};
 		let binaryPathError;
-		let stackCheckResult;
 
 		if (typeof dir !== 'string') {
 			throw new TypeError(`${DIR_ERROR}, but got ${inspectWithKind(dir)}.`);
@@ -87,14 +86,16 @@ module.exports = function downloadOrBuildPurescript(...args) {
 
 		const version = options.version || downloadPurescript.defaultVersion;
 		const isDifferentPlatform = options.platform && options.platform !== process.platform;
-		const buildOptions = Object.assign({revision: `v${version}`}, options);
+		const buildOptions = {revision: `v${version}`, ...options};
 
 		// to validate build-purescript arguments beforehand
-		buildPurescript(__filename, buildOptions).subscribe({
+		const tmpSubscription = buildPurescript(__dirname, buildOptions).subscribe({
 			error(err) {
 				observer.error(err);
 			}
-		}).unsubscribe();
+		});
+
+		setImmediate(() => tmpSubscription.unsubscribe());
 
 		const defaultBinName = getPlatformBinName(options.platform || process.platform);
 		const binName = options.rename ? options.rename(defaultBinName) : defaultBinName;
@@ -117,8 +118,8 @@ module.exports = function downloadOrBuildPurescript(...args) {
 		}
 
 		const startBuild = feint(() => {
-			if (stackCheckResult.id !== 'check-stack') {
-				sendError(stackCheckResult, 'check-stack');
+			if (stackCheckResult.error) {
+				sendError(stackCheckResult.error, 'check-stack');
 				return;
 			}
 
@@ -140,7 +141,7 @@ module.exports = function downloadOrBuildPurescript(...args) {
 							}
 
 							observer.next(progress);
-							observer.complete(binPath);
+							observer.complete();
 						});
 
 						return;
@@ -163,19 +164,15 @@ module.exports = function downloadOrBuildPurescript(...args) {
 			startBuild();
 		};
 
-		Promise.all([
-			new Promise(whichExecutor),
-			spawnStack(['--numeric-version'], options)
-		]).then(([path, {stdout}]) => {
-			stackCheckResult = {
-				id: 'check-stack',
-				path,
-				version: stdout
-			};
+		which('stack', async (_, stackPath) => {
+			stackCheckResult.path = stackPath;
 
-			startBuildIfNeeded();
-		}, err => {
-			stackCheckResult = err;
+			try {
+				stackCheckResult.version = (await spawnStack(['--numeric-version'], options)).stdout;
+			} catch (err) {
+				stackCheckResult.error = err;
+			}
+
 			startBuildIfNeeded();
 		});
 
@@ -196,9 +193,6 @@ module.exports = function downloadOrBuildPurescript(...args) {
 		}
 
 		const downloadObserver = {
-			start() {
-				observer.next({id: 'head'});
-			},
 			next(progress) {
 				progress.id = 'download-binary';
 				observer.next(progress);
@@ -222,24 +216,28 @@ module.exports = function downloadOrBuildPurescript(...args) {
 				observer.next({id: 'download-binary:complete'});
 
 				if (isDifferentPlatform) {
-					observer.complete(binPath);
+					observer.complete();
 					return;
 				}
 
 				observer.next({id: 'check-binary'});
 
-				execa(binPath, ['--version'], options).then(() => {
+				execFile(binPath, ['--version'], {timeout: 50000, ...options}, (err, stdout, stderr) => {
+					if (err) {
+						err.message += `\n${stderr}`;
+						addId(err, 'check-binary');
+
+						observer.next({
+							id: 'check-binary:fail',
+							error: err
+						});
+
+						startBuildIfNeeded();
+						return;
+					}
+
 					observer.next({id: 'check-binary:complete'});
-					observer.complete(binPath);
-				}, err => {
-					addId(err, 'check-binary');
-
-					observer.next({
-						id: 'check-binary:fail',
-						error: err
-					});
-
-					startBuildIfNeeded();
+					observer.complete();
 				});
 			}
 		};
@@ -255,25 +253,43 @@ module.exports = function downloadOrBuildPurescript(...args) {
 			downloadObserver.error = handleBinaryDownloadError;
 		});
 
-		prepareWrite(binPath).catch(err => {
-			binaryPathError = err;
+		(async () => {
+			try {
+				await prepareWrite(binPath);
 
-			if (observer.closed) {
-				return;
-			}
+				if (observer.closed) {
+					return;
+				}
+			} catch (err) {
+				binaryPathError = err;
 
-			completeHead();
-		});
+				if (observer.closed) {
+					return;
+				}
 
-		subscriptions.add(downloadPurescript(dir, Object.assign({}, options, {
-			map(header) {
 				completeHead();
-				header.name = binName;
+			}
+		})();
 
-				return header;
+		subscriptions.add(downloadPurescript(dir, {
+			...options,
+			filter(path, entry) {
+				completeHead();
+
+				if (basename(path, '.exe') !== 'purs') {
+					return false;
+				}
+
+				entry.path = `purescript/${binName}`;
+				entry.header.path = `purescript/${binName}`;
+				entry.absolute = join(dir, binName);
+
+				return true;
 			},
 			version
-		})).subscribe(downloadObserver));
+		}).subscribe(downloadObserver));
+
+		observer.next({id: 'head'});
 
 		return function cancelBuildOrDownloadPurescript() {
 			for (const subscription of subscriptions) {

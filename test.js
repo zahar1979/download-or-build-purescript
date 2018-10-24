@@ -2,14 +2,15 @@
 
 const {createGzip} = require('zlib');
 const {createServer} = require('http');
+const {EOL} = require('os');
+const {execFile} = require('child_process');
 const {isAbsolute, join} = require('path');
-const {parse} = require('url');
+const {promisify} = require('util');
 const {writeFile} = require('fs').promises;
 
 const downloadOrBuildPurescript = require('.');
 const feint = require('feint');
 const getDifferentPlatform = require('different-platform');
-const getStdout = require('execa').stdout;
 const {pack} = require('tar-stream');
 const pretendPlatform = require('pretend-platform');
 const readdirSorted = require('readdir-sorted');
@@ -18,6 +19,7 @@ const test = require('tape');
 const toExecutableName = require('to-executable-name');
 
 const DEFAULT_NAME = toExecutableName('purs');
+const promisifiedExecFile = promisify(execFile);
 
 const server = createServer(({url}, res) => {
 	res.statusCode = 200;
@@ -26,8 +28,8 @@ const server = createServer(({url}, res) => {
 	const tar = pack();
 
 	if (url.includes('broken')) {
-		tar.entry({name: 'a/broken/purs'}, 'abcdef');
-		tar.push(Buffer.from('broken data'));
+		tar.entry({name: 'broken/purs'}, 'broken');
+		tar.push('broken');
 	} else {
 		tar.entry({name: 'dir/purs'}, 'not a binary');
 	}
@@ -35,7 +37,7 @@ const server = createServer(({url}, res) => {
 	tar.finalize();
 	tar.pipe(createGzip()).pipe(res);
 }).listen(3018, () => test('downloadOrBuildPurescript()', async t => {
-	t.plan(70);
+	t.plan(67);
 
 	await rmfr(join(__dirname, 'tmp*'), {glob: true});
 	await writeFile(join(__dirname, 'tmpfile'), '');
@@ -49,7 +51,7 @@ const server = createServer(({url}, res) => {
 			ids.set(progress.id, progress);
 		},
 		error: t.fail,
-		complete(path) {
+		async complete() {
 			const values = ids.values();
 
 			t.deepEqual(
@@ -73,8 +75,8 @@ const server = createServer(({url}, res) => {
 			);
 
 			t.equal(
-				downloadBinary.entry.header.name,
-				DEFAULT_NAME,
+				downloadBinary.entry.header.path,
+				`purescript/${DEFAULT_NAME}`,
 				'should include `entry` property to `download-binary` progress.'
 			);
 
@@ -85,7 +87,7 @@ const server = createServer(({url}, res) => {
 			);
 
 			t.equal(
-				parse(downloadBinary.response.url).protocol,
+				new URL(downloadBinary.response.url).protocol,
 				'https:',
 				'should use HTTPS.'
 			);
@@ -114,18 +116,10 @@ const server = createServer(({url}, res) => {
 			);
 
 			t.equal(
-				path,
-				join(tmpDir, DEFAULT_NAME),
-				'should pass the downloaded binary path to `onComplete` callback.'
+				(await promisifiedExecFile(join(tmpDir, DEFAULT_NAME), ['--version'])).stdout,
+				`0.12.0${EOL}`,
+				'should download the binary correctly.'
 			);
-
-			getStdout(path, ['--version']).then(version => {
-				t.equal(
-					version,
-					'0.12.0',
-					'should download the binary correctly.'
-				);
-			}).catch(t.fail);
 		}
 	});
 
@@ -143,7 +137,7 @@ const server = createServer(({url}, res) => {
 			if (id === 'download-binary:fail') {
 				t.equal(
 					error.message,
-					'Invalid tar header. Maybe the tar is corrupted or it needs to be gunzipped?',
+					'invalid entry',
 					'should send `download-binary:fail` progress when it fails to download a binary.'
 				);
 			}
@@ -176,7 +170,7 @@ const server = createServer(({url}, res) => {
 		next({error, id, path, version}) {
 			if (id === 'check-binary:fail') {
 				t.ok(
-					/spawn .+ EACCES|not recognized as an internal or external command/.test(error.message),
+					/spawn .+ (EACCES|ENOENT)/u.test(error.message),
 					'should send `check-binary:fail` progress when a downloaded binary is broken.'
 				);
 
@@ -191,7 +185,7 @@ const server = createServer(({url}, res) => {
 
 				t.equal(
 					version,
-					'1.7.1',
+					'1.9.1',
 					'should check the version of `stack` command when the prebuilt binary is broken.'
 				);
 
@@ -263,14 +257,16 @@ const server = createServer(({url}, res) => {
 		}
 	});
 
-	downloadOrBuildPurescript(__filename).subscribe({
+	const subscriptionImmediatelyCanceled = downloadOrBuildPurescript(__filename).subscribe({
 		next({id}) {
 			if (id === 'head') {
 				t.pass('should start `head` step even if the download is immediately canceled.');
 			}
 		},
 		error: t.fail
-	}).unsubscribe();
+	});
+
+	setImmediate(() => subscriptionImmediatelyCanceled.unsubscribe());
 
 	pretendPlatform('aix');
 
@@ -278,7 +274,7 @@ const server = createServer(({url}, res) => {
 	const sourceDir = join(__dirname, 'tmp', '_');
 	const setupOutput = [];
 	const nums = Array.from({length: 20}, (v, k) => Math.floor((k + 1) * 7.5));
-	const logRegexps = nums.map(num => new RegExp(`^\\[ *${num} of \\d+] Compiling (Language|Paths_purescript)`));
+	const logRegexps = nums.map(num => new RegExp(`^\\[ *${num} of \\d+\\] Compiling (Language|Paths_purescript)`, 'u'));
 
 	downloadOrBuildPurescript(anotherTmpDir, {
 		sourceDir,
@@ -288,7 +284,7 @@ const server = createServer(({url}, res) => {
 		],
 		rename: originalName => `${originalName}.bin`
 	}).subscribe({
-		next({entry, error, id, output}) {
+		async next({entry, error, id, output}) {
 			if (id === 'head:fail') {
 				t.ok(
 					error.message.startsWith('Prebuilt `purs` binary is not provided for '),
@@ -303,10 +299,10 @@ const server = createServer(({url}, res) => {
 				return;
 			}
 
-			if (id === 'download-source' && entry.header.name === 'src/') {
+			if (id === 'download-source' && entry.header.path.endsWith('/app/')) {
 				t.equal(
 					entry.header.type,
-					'directory',
+					'Directory',
 					'should fire the status of each entry in the PureScript source.'
 				);
 
@@ -332,23 +328,16 @@ const server = createServer(({url}, res) => {
 			}
 
 			if (id === 'build:complete') {
-				getStdout(join(anotherTmpDir, 'purs.bin'), ['--version']).then(version => {
-					t.equal(
-						version,
-						'0.12.0',
-						'should build the binary when the prebuilt binary is not provided for the current platform.'
-					);
-				}).catch(t.fail);
+				t.equal(
+					(await promisifiedExecFile(join(anotherTmpDir, 'purs.bin'), ['--version'])).stdout,
+					`0.12.0${EOL}`,
+					'should build the binary when the prebuilt binary is not provided for the current platform.'
+				);
 
 				return;
 			}
 
 			if (logRegexps.length === 0) {
-				return;
-			}
-
-			if (/^pipes-http-.*: copy\/register/.test(output)) {
-				t.pass('should copy and register the external dependencies.');
 				return;
 			}
 
@@ -362,13 +351,7 @@ const server = createServer(({url}, res) => {
 			}
 		},
 		error: t.fail,
-		complete(path) {
-			t.equal(
-				path,
-				join(anotherTmpDir, 'purs.bin'),
-				'should pass the built binary path to `onComplete` callback.'
-			);
-
+		complete() {
 			pretendPlatform('sunos');
 
 			downloadOrBuildPurescript(join(__dirname, 'tmp', 'dry_run'), {
@@ -487,17 +470,17 @@ const server = createServer(({url}, res) => {
 			t.equal(
 				err.toString(),
 				'TypeError: Expected `args` option to be an array of user defined arguments ' +
-        'passed to `stack setup` and `stack install`, but got a non-array value Uint16Array [  ].',
+        'passed to `stack setup` and `stack install`, but got a non-array value Uint16Array [].',
 				'should fail when it takes an invalid build-purescript option.'
 			);
 		}
 	});
 
-	downloadOrBuildPurescript('.', {map: NaN}).subscribe({
+	downloadOrBuildPurescript('.', {filter: NaN}).subscribe({
 		error(err) {
 			t.equal(
 				err.toString(),
-				'Error: `map` option is not supported, but NaN was provided to it.',
+				'Error: `filter` option is not supported, but NaN was provided to it.',
 				'should fail when it takes an unsupported option.'
 			);
 		}
@@ -532,7 +515,7 @@ test('downloadOrBuildPurescript.supportedBuildFlags', t => {
 
 	t.throws(() => {
 		downloadOrBuildPurescript.supportedBuildFlags = 1;
-	}, /Cannot assign to read only property/, 'should be unoverwritable.');
+	}, /Cannot assign to read only property/u, 'should be unoverwritable.');
 
 	t.ok(
 		Object.keys(downloadOrBuildPurescript).includes('supportedBuildFlags'),

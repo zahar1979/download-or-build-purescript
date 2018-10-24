@@ -12,7 +12,7 @@ const {readdirSync} = require('fs');
 const {spwan} = require('child_process');
 const downloadOrBuildPurescript = require('download-or-build-purescript');
 
-downloadOrBuildPurescript('./dest', {version: '0.11.7'}).subscribe({
+downloadOrBuildPurescript('./dest', {version: '0.12.0'}).subscribe({
   next(event) {
     if (event.id === 'head:complete') {
       console.log('✓ Prebuilt binary exists.');
@@ -32,7 +32,7 @@ downloadOrBuildPurescript('./dest', {version: '0.11.7'}).subscribe({
   complete() {
     readdirSync('dest'); //=> ['purs']
     spwan('./dest/purs', ['--version'], (err, stdout) => {
-      stdout.toString(); //=> '0.11.7\n'
+      stdout.toString(); //=> '0.12.0\n'
     });
   }
 });
@@ -40,7 +40,7 @@ downloadOrBuildPurescript('./dest', {version: '0.11.7'}).subscribe({
 
 ## Installation
 
-[Use npm.](https://docs.npmjs.com/cli/install)
+[Use](https://docs.npmjs.com/cli/install) [npm](https://docs.npmjs.com/getting-started/what-is-npm).
 
 ```
 npm install download-or-build-purescript
@@ -54,9 +54,9 @@ const downloadOrBuildPurescript = require('download-or-build-purescript');
 
 ### downloadOrBuildPurescript(*dir* [, *options*])
 
-*path*: `String` (a directory path where the PureScript binary will be installed)  
+*path*: `string` (a directory path where the PureScript binary will be installed)  
 *options*: `Object`  
-Return: [`Observable`](https://github.com/tc39/proposal-observable#observable) ([zenparsing's implementation](https://github.com/zenparsing/zen-observable))
+Return: [`Observable`](https://github.com/tc39/proposal-observable#observable) ([Kevin Smith's implementation](https://github.com/zenparsing/zen-observable))
 
 When the `Observable` is [subscribe](https://tc39.github.io/proposal-observable/#observable-prototype-subscribe)d,
 
@@ -150,10 +150,7 @@ Fires many times while downloading and extracting the prebuilt binary.
 ```javascript
 {
   id: 'download-binary',
-  entry: {
-    bytes: <number>,
-    header: <Object>
-  },
+  entry: <ReadEntry>,
   response: {
     bytes: <number>,
     headers: <Object>,
@@ -247,10 +244,7 @@ Fires many times while [downloading and extracting the PureScript source code](h
 ```javascript
 {
   id: 'download-source',
-  entry: {
-    bytes: <number>,
-    header: <Object>
-  },
+  entry: <ReadEntry>,
   response: {
     bytes: <number>,
     headers: <Object>,
@@ -295,28 +289,15 @@ downloadOrBuildPureScript('.').subscribe({
 });
 ```
 
-#### `onComplete` value
-
-Type: `string` (an absolute path of the created binary)
-
-Unlike [the current draft spec of `Observable`](https://tc39.github.io/proposal-observable/), [`zen-observable` allows an `Observable` to send value to the `complete` fallback](https://github.com/zenparsing/zen-observable/issues/27) and this library follows its behavior.
-
-```javascript
-downloadOrBuildPurescript('/my/dir').subscribe({
-  complete(path) {
-    path; //=> '/my/dir/purs'
-  }
-});
-```
-
 #### Options
 
-Options are directly passed to [`download-purescript`](https://github.com/shinnn/download-purescript) and [`build-purescript`](https://github.com/shinnn/build-purescript).
+Options are directly passed to [`download-purescript`](https://github.com/shinnn/download-purescript) and [`build-purescript`](https://github.com/shinnn/build-purescript). Note that,
 
-Note that when the [`platform` option](https://github.com/shinnn/download-purescript#platform) is specified to the different platform:
-
-* `check-binary` and `check-binary:complete` steps will be skipped.
-* `*:fail` steps will be skipped and it just pass the error to its `Observer`.
+* `filter` option is not supported.
+* `revision` option is not supported. Use `version` option instead.
+* When the [`platform` option](https://github.com/shinnn/download-purescript#platform) is specified to the different platform:
+  - `check-binary` and `check-binary:complete` steps will be skipped.
+  - `*:fail` steps will be skipped and it just pass the error to its `Observer`.
 
 Additionally, you can use the following:
 
