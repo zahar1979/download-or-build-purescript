@@ -2,7 +2,6 @@
 
 [![npm version](https://img.shields.io/npm/v/download-or-build-purescript.svg)](https://www.npmjs.com/package/download-or-build-purescript)
 [![Build Status](https://travis-ci.org/shinnn/download-or-build-purescript.svg?branch=master)](https://travis-ci.org/shinnn/download-or-build-purescript)
-[![Build status](https://ci.appveyor.com/api/projects/status/of6y6qg95jyvwylp/branch/master?svg=true)](https://ci.appveyor.com/project/ShinnosukeWatanabe/download-or-build-purescript/branch/master)
 [![Coverage Status](https://img.shields.io/coveralls/shinnn/download-or-build-purescript.svg)](https://coveralls.io/github/shinnn/download-or-build-purescript?branch=master)
 
 First try to download a prebuilt [PureScript](http://www.purescript.org/) binary, then build from a source if the prebuilt one is unavailable
