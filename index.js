@@ -18,10 +18,6 @@ const which = require('which');
 
 const DIR_ERROR = 'Expected a path where the PureScript binary will be installed';
 
-function getPlatformBinName(platform) {
-	return `purs${platform === 'win32' ? '.exe' : ''}`;
-}
-
 function addId(obj, id) {
 	Object.defineProperty(obj, 'id', {
 		value: id,
@@ -33,7 +29,7 @@ const unsupportedOptions = new Set([
 	'filter',
 	'revision'
 ]);
-const initialBinName = getPlatformBinName(process.platform);
+const initialBinName = `purs${process.platform === 'win32' ? '.exe' : ''}`;
 
 module.exports = function downloadOrBuildPurescript(...args) {
 	return new Observable(observer => {
@@ -85,20 +81,8 @@ module.exports = function downloadOrBuildPurescript(...args) {
 		}
 
 		const version = options.version || downloadPurescript.defaultVersion;
-		const isDifferentPlatform = options.platform && options.platform !== process.platform;
 		const buildOptions = {revision: `v${version}`, ...options};
-
-		// to validate build-purescript arguments beforehand
-		const tmpSubscription = buildPurescript(__dirname, buildOptions).subscribe({
-			error(err) {
-				observer.error(err);
-			}
-		});
-
-		setImmediate(() => tmpSubscription.unsubscribe());
-
-		const defaultBinName = getPlatformBinName(options.platform || process.platform);
-		const binName = options.rename ? options.rename(defaultBinName) : defaultBinName;
+		const binName = options.rename ? options.rename(initialBinName) : initialBinName;
 
 		if (typeof binName !== 'string') {
 			throw new TypeError(`Expected \`rename\` option to be a function that returns a string, but returned ${
@@ -111,6 +95,15 @@ module.exports = function downloadOrBuildPurescript(...args) {
 		}
 
 		const binPath = resolve(dir, binName);
+
+		// to validate build-purescript arguments beforehand
+		const tmpSubscription = buildPurescript(__dirname, buildOptions).subscribe({
+			error(err) {
+				observer.error(err);
+			}
+		});
+
+		setImmediate(() => tmpSubscription.unsubscribe());
 
 		function sendError(err, id) {
 			addId(err, id);
@@ -179,11 +172,6 @@ module.exports = function downloadOrBuildPurescript(...args) {
 		function handleBinaryDownloadError(err) {
 			addId(err, 'download-binary');
 
-			if (isDifferentPlatform) {
-				observer.error(err);
-				return;
-			}
-
 			observer.next({
 				id: 'download-binary:fail',
 				error: err
@@ -198,7 +186,7 @@ module.exports = function downloadOrBuildPurescript(...args) {
 				observer.next(progress);
 			},
 			error(err) {
-				if (err.code === 'ERR_UNSUPPORTED_PLATFORM' && !isDifferentPlatform) {
+				if (err.code === 'ERR_UNSUPPORTED_PLATFORM') {
 					addId(err, 'head');
 
 					observer.next({
@@ -214,14 +202,7 @@ module.exports = function downloadOrBuildPurescript(...args) {
 			},
 			complete() {
 				observer.next({id: 'download-binary:complete'});
-
-				if (isDifferentPlatform) {
-					observer.complete();
-					return;
-				}
-
 				observer.next({id: 'check-binary'});
-
 				execFile(binPath, ['--version'], {timeout: 50000, ...options}, (err, stdout, stderr) => {
 					if (err) {
 						err.message += `\n${stderr}`;

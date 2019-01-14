@@ -1,7 +1,7 @@
 # download-or-build-purescript
 
 [![npm version](https://img.shields.io/npm/v/download-or-build-purescript.svg)](https://www.npmjs.com/package/download-or-build-purescript)
-[![Build Status](https://travis-ci.org/shinnn/download-or-build-purescript.svg?branch=master)](https://travis-ci.org/shinnn/download-or-build-purescript)
+[![Build Status](https://travis-ci.com/shinnn/download-or-build-purescript.svg?branch=master)](https://travis-ci.com/shinnn/download-or-build-purescript)
 [![Coverage Status](https://img.shields.io/coveralls/shinnn/download-or-build-purescript.svg)](https://coveralls.io/github/shinnn/download-or-build-purescript?branch=master)
 
 First try to download a prebuilt [PureScript](http://www.purescript.org/) binary, then build from a source if the prebuilt one is unavailable
@@ -11,7 +11,7 @@ const {readdirSync} = require('fs');
 const {spwan} = require('child_process');
 const downloadOrBuildPurescript = require('download-or-build-purescript');
 
-downloadOrBuildPurescript('./dest', {version: '0.12.0'}).subscribe({
+downloadOrBuildPurescript('./dest', {version: '0.12.2'}).subscribe({
   next(event) {
     if (event.id === 'head:complete') {
       console.log('✓ Prebuilt binary exists.');
@@ -31,7 +31,7 @@ downloadOrBuildPurescript('./dest', {version: '0.12.0'}).subscribe({
   complete() {
     readdirSync('dest'); //=> ['purs']
     spwan('./dest/purs', ['--version'], (err, stdout) => {
-      stdout.toString(); //=> '0.12.0\n'
+      stdout.toString(); //=> '0.12.2\n'
     });
   }
 });
@@ -39,7 +39,7 @@ downloadOrBuildPurescript('./dest', {version: '0.12.0'}).subscribe({
 
 ## Installation
 
-[Use](https://docs.npmjs.com/cli/install) [npm](https://docs.npmjs.com/getting-started/what-is-npm).
+[Use](https://docs.npmjs.com/cli/install) [npm](https://docs.npmjs.com/about-npm/).
 
 ```
 npm install download-or-build-purescript
@@ -325,4 +325,4 @@ downloadOrBuildPurescript('./dest', {
 
 ## License
 
-[ISC License](./LICENSE) © 2017 - 2018 Shinnosuke Watanabe
+[ISC License](./LICENSE) © 2017 - 2019 Shinnosuke Watanabe

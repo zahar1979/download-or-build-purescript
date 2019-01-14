@@ -10,10 +10,9 @@ const {writeFile} = require('fs').promises;
 
 const downloadOrBuildPurescript = require('.');
 const feint = require('feint');
-const getDifferentPlatform = require('different-platform');
+const importFresh = require('import-fresh');
 const {pack} = require('tar-stream');
 const pretendPlatform = require('pretend-platform');
-const readdirSorted = require('readdir-sorted');
 const rmfr = require('rmfr');
 const test = require('tape');
 const toExecutableName = require('to-executable-name');
@@ -37,7 +36,7 @@ const server = createServer(({url}, res) => {
 	tar.finalize();
 	tar.pipe(createGzip()).pipe(res);
 }).listen(3018, () => test('downloadOrBuildPurescript()', async t => {
-	t.plan(67);
+	t.plan(54);
 
 	await rmfr(join(__dirname, 'tmp*'), {glob: true});
 	await writeFile(join(__dirname, 'tmpfile'), '');
@@ -117,13 +116,24 @@ const server = createServer(({url}, res) => {
 
 			t.equal(
 				(await promisifiedExecFile(join(tmpDir, DEFAULT_NAME), ['--version'])).stdout,
-				`0.12.0${EOL}`,
+				`0.12.2${EOL}`,
 				'should download the binary correctly.'
 			);
 		}
 	});
 
 	const fail = t.fail.bind(t, 'Unexpectedly succeeded.');
+
+	downloadOrBuildPurescript('.', {baseUrl: 'http://localhost:3019'}).subscribe({
+		error({code}) {
+			t.equal(
+				code,
+				'ECONNREFUSED',
+				'should fail when it cannot connect to the binary server.'
+			);
+		},
+		complete: fail
+	});
 
 	downloadOrBuildPurescript(join(__dirname, 'tmp', 'broken'), {
 		baseUrl: 'http://localhost:3018/broken',
@@ -185,7 +195,7 @@ const server = createServer(({url}, res) => {
 
 				t.equal(
 					version,
-					'1.9.1',
+					'1.9.3',
 					'should check the version of `stack` command when the prebuilt binary is broken.'
 				);
 
@@ -205,36 +215,6 @@ const server = createServer(({url}, res) => {
 			);
 		},
 		complete: fail
-	});
-
-	const differentPlatform = getDifferentPlatform();
-	const differentPlatformBinaryPath = join(__dirname, 'tmp', 'different_platform');
-
-	downloadOrBuildPurescript(join(__dirname, 'tmp', 'broken_and_different_platform'), {
-		baseUrl: 'http://localhost:3018/broken',
-		platform: differentPlatform
-	}).subscribe({
-		error({id}) {
-			t.equal(
-				id,
-				'download-binary',
-				'should skip fallback steps when the `platform` option is different from `process.platform`.'
-			);
-		},
-		complete: fail
-	});
-
-	downloadOrBuildPurescript(differentPlatformBinaryPath, {platform: differentPlatform}).subscribe({
-		error: t.fail,
-		async complete() {
-			t.pass('should not check if the binary works or not after downloading the binary of the different platform.');
-
-			t.deepEqual(
-				[...await readdirSorted(differentPlatformBinaryPath)],
-				[`purs${'.exe'.repeat(Number(differentPlatform === 'win32'))}`],
-				'should download the binary in the platform specified in `platform` option.'
-			);
-		}
 	});
 
 	downloadOrBuildPurescript(__filename).subscribe({
@@ -329,8 +309,8 @@ const server = createServer(({url}, res) => {
 
 			if (id === 'build:complete') {
 				t.equal(
-					(await promisifiedExecFile(join(anotherTmpDir, 'purs.bin'), ['--version'])).stdout,
-					`0.12.0${EOL}`,
+					(await promisifiedExecFile(join(anotherTmpDir, `${DEFAULT_NAME}.bin`), ['--version'])).stdout,
+					`0.12.2${EOL}`,
 					'should build the binary when the prebuilt binary is not provided for the current platform.'
 				);
 
@@ -372,7 +352,7 @@ const server = createServer(({url}, res) => {
 				}
 			});
 
-			pretendPlatform('restore');
+			pretendPlatform.restore();
 		}
 	});
 
@@ -389,6 +369,10 @@ const server = createServer(({url}, res) => {
 			);
 		}
 	});
+}));
+
+test('Argument validation', t => {
+	t.plan(10);
 
 	downloadOrBuildPurescript(new Set()).subscribe({
 		error(err) {
@@ -422,16 +406,6 @@ const server = createServer(({url}, res) => {
 		}
 	});
 
-	downloadOrBuildPurescript('.', {platform: 'android'}).subscribe({
-		error({code}) {
-			t.equal(
-				code,
-				'ERR_UNSUPPORTED_PLATFORM',
-				'should fail when the prebuilt `purs` is not provided for the specified platform.'
-			);
-		}
-	});
-
 	downloadOrBuildPurescript('.', {rename: String.fromCharCode(0)}).subscribe({
 		error(err) {
 			t.equal(
@@ -454,7 +428,13 @@ const server = createServer(({url}, res) => {
 		}
 	});
 
-	downloadOrBuildPurescript('.', {rename: () => ''}).subscribe({
+	pretendPlatform('win32');
+
+	importFresh('.')('.', {
+		rename(originalName) {
+			return originalName.replace('purs.exe', '');
+		}
+	}).subscribe({
 		error(err) {
 			t.equal(
 				err.toString(),
@@ -464,6 +444,8 @@ const server = createServer(({url}, res) => {
 			);
 		}
 	});
+
+	pretendPlatform.restore();
 
 	downloadOrBuildPurescript('.', {args: new Uint16Array()}).subscribe({
 		error(err) {
@@ -505,7 +487,7 @@ const server = createServer(({url}, res) => {
 			);
 		}
 	});
-}));
+});
 
 test('downloadOrBuildPurescript.supportedBuildFlags', t => {
 	t.ok(
