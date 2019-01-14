@@ -4,10 +4,11 @@ language: node_js
 node_js: node
 matrix:
   include:
-  - before_install: curl --silent --show-error --location https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/bin '*/stack'
+  - dist: xenial
     cache:
       directories: ~/.stack
-    after_script: node_modules/.bin/nyc report | npx coveralls
+    before_install: curl --silent --show-error --location https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/bin '*/stack'
+    after_success: node_modules/.bin/nyc report | npx coveralls
   - os: windows
     env: STACK_ROOT=C:\\s
     cache:
