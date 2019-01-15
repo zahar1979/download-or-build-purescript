@@ -1,6 +1,6 @@
 {
 	"name": "download-or-build-purescript",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "First try to download a prebuilt PureScript binary, then build from a source if the prebuilt one is unavailable",
 	"author": "Shinnosuke Watanabe (https://github.com/shinnn)",
 	"repository": "shinnn/download-or-build-purescript",
