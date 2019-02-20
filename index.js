@@ -1,9 +1,9 @@
 'use strict';
 
 const {execFile} = require('child_process');
-const {inspect} = require('util');
-const {rename} = require('fs');
-const {basename, join, resolve} = require('path');
+const {inspect, promisify} = require('util');
+const {rename, stat} = require('fs');
+const {basename, join} = require('path');
 
 const buildPurescript = require('build-purescript');
 const downloadPurescript = require('download-purescript');
@@ -12,11 +12,10 @@ const inspectWithKind = require('inspect-with-kind');
 const isPlainObj = require('is-plain-obj');
 const Observable = require('zen-observable');
 const once = require('once');
-const prepareWrite = require('prepare-write');
+const {pause, resume} = require('pause-methods');
+const runInDir = require('run-in-dir');
 const spawnStack = require('spawn-stack');
 const which = require('which');
-
-const DIR_ERROR = 'Expected a path where the PureScript binary will be installed';
 
 function addId(obj, id) {
 	Object.defineProperty(obj, 'id', {
@@ -25,40 +24,29 @@ function addId(obj, id) {
 	});
 }
 
-const unsupportedOptions = new Set([
-	'filter',
-	'revision'
-]);
+const unsupportedOptions = new Set(['filter', 'revision']);
 const initialBinName = `purs${process.platform === 'win32' ? '.exe' : ''}`;
 
 module.exports = function downloadOrBuildPurescript(...args) {
 	return new Observable(observer => {
 		const argLen = args.length;
 
-		if (argLen !== 1 && argLen !== 2) {
-			throw new RangeError(`Expected 1 or 2 arguments (<string>[, <Object>]), but got ${
-				argLen === 0 ? 'no' : argLen
-			} arguments.`);
+		if (argLen > 1) {
+			const error = new RangeError(`Expected 0 or 1 argument ([<Object>]), but got ${argLen} arguments.`);
+			error.code = 'ERR_TOO_MANY_ARGS';
+
+			throw error;
 		}
 
-		const [dir, options = {}] = args;
+		const [options = {}] = args;
 		const subscriptions = new Set();
 		const stackCheckResult = {
 			id: 'check-stack',
 			path: 'stack',
 			version: ''
 		};
-		let binaryPathError;
 
-		if (typeof dir !== 'string') {
-			throw new TypeError(`${DIR_ERROR}, but got ${inspectWithKind(dir)}.`);
-		}
-
-		if (dir.length === 0) {
-			throw new Error(`${DIR_ERROR}, but got '' (empty string).`);
-		}
-
-		if (argLen === 2) {
+		if (argLen === 1) {
 			if (!isPlainObj(options)) {
 				throw new TypeError(`Expected an object to specify options of install-purescript, but got ${
 					inspectWithKind(options)
@@ -94,16 +82,15 @@ module.exports = function downloadOrBuildPurescript(...args) {
 			throw new Error('Expected `rename` option to be a function that returns a new binary name, but returned \'\' (empty string).');
 		}
 
-		const binPath = resolve(dir, binName);
+		const cwd = process.cwd();
+		const binPath = join(cwd, binName);
 
 		// to validate build-purescript arguments beforehand
-		const tmpSubscription = buildPurescript(__dirname, buildOptions).subscribe({
+		const tmpSubscription = buildPurescript(buildOptions).subscribe({
 			error(err) {
 				observer.error(err);
 			}
 		});
-
-		setImmediate(() => tmpSubscription.unsubscribe());
 
 		function sendError(err, id) {
 			addId(err, id);
@@ -119,15 +106,15 @@ module.exports = function downloadOrBuildPurescript(...args) {
 			observer.next(stackCheckResult);
 			observer.next({id: 'check-stack:complete'});
 
-			subscriptions.add(buildPurescript(dir, buildOptions).subscribe({
+			runInDir(cwd, () => subscriptions.add(buildPurescript(buildOptions).subscribe({
 				next(progress) {
 					if (progress.id === 'build:complete') {
-						// No need to check `resolve(dir, initialBinName) !== binPath`, because:
+						// No need to check `join(cwd, initialBinName) !== binPath`, because:
 						// > If oldpath and newpath are existing hard links referring to
 						// > the same file, then rename() does nothing,
 						// > and returns a success status.
 						// (http://man7.org/linux/man-pages/man2/rename.2.html#DESCRIPTION)
-						rename(resolve(dir, initialBinName), binPath, err => {
+						rename(join(cwd, initialBinName), binPath, err => {
 							if (err) {
 								sendError(err, 'build');
 								return;
@@ -146,7 +133,7 @@ module.exports = function downloadOrBuildPurescript(...args) {
 				error(err) {
 					sendError(err, err.id.replace('download', 'download-source'));
 				}
-			}));
+			})));
 		});
 
 		const startBuildIfNeeded = () => {
@@ -169,18 +156,7 @@ module.exports = function downloadOrBuildPurescript(...args) {
 			startBuildIfNeeded();
 		});
 
-		function handleBinaryDownloadError(err) {
-			addId(err, 'download-binary');
-
-			observer.next({
-				id: 'download-binary:fail',
-				error: err
-			});
-
-			startBuildIfNeeded();
-		}
-
-		const downloadObserver = {
+		const downloadObserver = pause({
 			next(progress) {
 				progress.id = 'download-binary';
 				observer.next(progress);
@@ -221,56 +197,72 @@ module.exports = function downloadOrBuildPurescript(...args) {
 					observer.complete();
 				});
 			}
-		};
+		});
 
-		const completeHead = once(() => {
+		const completeHead = feint(once(() => {
 			observer.next({id: 'head:complete'});
+			downloadObserver.error = err => {
+				addId(err, 'download-binary');
 
-			if (binaryPathError) {
-				sendError(binaryPathError, 'download-binary');
+				observer.next({
+					id: 'download-binary:fail',
+					error: err
+				});
+
+				startBuildIfNeeded();
+			};
+		}));
+
+		(async () => {
+			const [stats] = await Promise.all([
+				(async () => {
+					try {
+						return await promisify(stat)(binPath);
+					} catch (_) {
+						return null;
+					}
+				})(),
+				(async () => {
+					await promisify(setImmediate)();
+					tmpSubscription.unsubscribe();
+				})()
+			]);
+
+			if (observer.closed) {
 				return;
 			}
 
-			downloadObserver.error = handleBinaryDownloadError;
-		});
+			if (stats && stats.isDirectory()) {
+				const error = new Error(`Tried to create a PureScript binary at ${binPath}, but a directory already exists there.`);
 
-		(async () => {
-			try {
-				await prepareWrite(binPath);
+				error.code = 'EISDIR';
+				observer.error(error);
 
-				if (observer.closed) {
-					return;
-				}
-			} catch (err) {
-				binaryPathError = err;
-
-				if (observer.closed) {
-					return;
-				}
-
-				completeHead();
+				return;
 			}
+
+			observer.next({id: 'head'});
+			resume(downloadObserver);
+			completeHead();
 		})();
 
-		subscriptions.add(downloadPurescript(dir, {
+		subscriptions.add(downloadPurescript({
 			...options,
 			filter(path, entry) {
-				completeHead();
-
 				if (basename(path, '.exe') !== 'purs') {
 					return false;
 				}
 
+				completeHead();
+
 				entry.path = `purescript/${binName}`;
 				entry.header.path = `purescript/${binName}`;
-				entry.absolute = join(dir, binName);
+				entry.absolute = join(cwd, binName);
 
 				return true;
 			},
 			version
 		}).subscribe(downloadObserver));
-
-		observer.next({id: 'head'});
 
 		return function cancelBuildOrDownloadPurescript() {
 			for (const subscription of subscriptions) {
@@ -280,12 +272,13 @@ module.exports = function downloadOrBuildPurescript(...args) {
 	});
 };
 
-Object.defineProperty(module.exports, 'defaultVersion', {
-	value: downloadPurescript.defaultVersion,
-	enumerable: true
-});
-
-Object.defineProperty(module.exports, 'supportedBuildFlags', {
-	value: buildPurescript.supportedBuildFlags,
-	enumerable: true
+Object.defineProperties(module.exports, {
+	defaultVersion: {
+		enumerable: true,
+		value: downloadPurescript.defaultVersion
+	},
+	supportedBuildFlags: {
+		enumerable: true,
+		value: buildPurescript.supportedBuildFlags
+	}
 });

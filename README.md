@@ -7,11 +7,11 @@
 First try to download a prebuilt [PureScript](http://www.purescript.org/) binary, then build from a source if the prebuilt one is unavailable
 
 ```javascript
-const {readdirSync} = require('fs');
-const {spwan} = require('child_process');
+const {readdir} = require('fs').promise;
+const {execFile} = require('child_process');
 const downloadOrBuildPurescript = require('download-or-build-purescript');
 
-downloadOrBuildPurescript('./dest', {version: '0.12.2'}).subscribe({
+downloadOrBuildPurescript({version: '0.12.2'}).subscribe({
   next(event) {
     if (event.id === 'head:complete') {
       console.log('✓ Prebuilt binary exists.');
@@ -28,9 +28,9 @@ downloadOrBuildPurescript('./dest', {version: '0.12.2'}).subscribe({
       return;
     }
   }
-  complete() {
-    readdirSync('dest'); //=> ['purs']
-    spwan('./dest/purs', ['--version'], (err, stdout) => {
+  async complete() {
+    await readdirSync('.').includes('purs'); //=> true
+    execFile('./purs', ['--version'], (err, stdout) => {
       stdout.toString(); //=> '0.12.2\n'
     });
   }
@@ -51,9 +51,8 @@ npm install download-or-build-purescript
 const downloadOrBuildPurescript = require('download-or-build-purescript');
 ```
 
-### downloadOrBuildPurescript(*dir* [, *options*])
+### downloadOrBuildPurescript([*options*])
 
-*path*: `string` (a directory path where the PureScript binary will be installed)  
 *options*: `Object`  
 Return: [`Observable`](https://github.com/tc39/proposal-observable#observable) ([Kevin Smith's implementation](https://github.com/zenparsing/zen-observable))
 
@@ -61,6 +60,7 @@ When the `Observable` is [subscribe](https://tc39.github.io/proposal-observable/
 
 1. it downloads a prebuilt PureScript binary from the [PureScript release page](https://github.com/purescript/purescript/releases)
 2. if a prebuilt binary is not available, it downloads [the PureScript source code](https://github.com/purescript/purescript) and [builds](https://github.com/purescript/purescript/blob/master/INSTALL.md#compiling-from-source) a binary form it
+3. it puts the binary at [the current working directory](https://nodejs.org/api/process.html#process_process_cwd)
 
 while successively sending [events](#events) to its [`Observer`](https://github.com/tc39/proposal-observable#observer).
 
@@ -272,7 +272,7 @@ Every error passed to the `Observer` has `id` property that indicates which step
 
 ```javascript
 // When the `stack` command is not installed
-downloadOrBuildPureScript('.').subscribe({
+downloadOrBuildPureScript().subscribe({
   error(err) {
     err.message; //=> '`stack` command is not found in your PATH ...'
     err.id; //=> 'check-stack'
@@ -280,7 +280,7 @@ downloadOrBuildPureScript('.').subscribe({
 });
 
 // When your machine lose the internet connection while downloading the source
-downloadOrBuildPureScript('.').subscribe({
+downloadOrBuildPureScript().subscribe({
   error(err) {
     err.message; //=> 'socket hang up'
     err.id; //=> 'download-source'

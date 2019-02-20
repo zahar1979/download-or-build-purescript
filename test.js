@@ -1,12 +1,12 @@
 'use strict';
 
+const {basename, isAbsolute, join} = require('path');
 const {createGzip} = require('zlib');
 const {createServer} = require('http');
 const {EOL} = require('os');
 const {execFile} = require('child_process');
-const {isAbsolute, join} = require('path');
 const {promisify} = require('util');
-const {writeFile} = require('fs').promises;
+const {mkdir} = require('fs').promises;
 
 const downloadOrBuildPurescript = require('.');
 const feint = require('feint');
@@ -36,16 +36,19 @@ const server = createServer(({url}, res) => {
 	tar.finalize();
 	tar.pipe(createGzip()).pipe(res);
 }).listen(3018, () => test('downloadOrBuildPurescript()', async t => {
-	t.plan(54);
+	t.plan(50);
 
 	await rmfr(join(__dirname, 'tmp*'), {glob: true});
-	await writeFile(join(__dirname, 'tmpfile'), '');
 
 	const closeServer = feint(() => server.close());
-	const tmpDir = join(__dirname, 'tmp', 'normal');
+	const tmpDir = join(__dirname, 'tmp');
+	const anotherTmpDir = join(tmpDir, 'built');
 	const ids = new Map();
 
-	downloadOrBuildPurescript(tmpDir).subscribe({
+	await mkdir(anotherTmpDir, {recursive: true});
+	process.chdir(tmpDir);
+
+	downloadOrBuildPurescript().subscribe({
 		next(progress) {
 			ids.set(progress.id, progress);
 		},
@@ -124,7 +127,7 @@ const server = createServer(({url}, res) => {
 
 	const fail = t.fail.bind(t, 'Unexpectedly succeeded.');
 
-	downloadOrBuildPurescript('.', {baseUrl: 'http://localhost:3019'}).subscribe({
+	downloadOrBuildPurescript({baseUrl: 'http://localhost:3019'}).subscribe({
 		error({code}) {
 			t.equal(
 				code,
@@ -135,8 +138,9 @@ const server = createServer(({url}, res) => {
 		complete: fail
 	});
 
-	downloadOrBuildPurescript(join(__dirname, 'tmp', 'broken'), {
+	downloadOrBuildPurescript({
 		baseUrl: 'http://localhost:3018/broken',
+		rename: () => 'broken',
 		maxBuffer: 1
 	}).subscribe({
 		next({id, error}) {
@@ -158,7 +162,7 @@ const server = createServer(({url}, res) => {
 			t.equal(
 				err.message,
 				'stdout maxBuffer exceeded',
-				'should fail when the `stack` command does not work correctly..'
+				'should fail when the `stack` command does not work correctly.'
 			);
 
 			t.equal(
@@ -170,7 +174,7 @@ const server = createServer(({url}, res) => {
 		complete: fail
 	});
 
-	downloadOrBuildPurescript(__dirname, {
+	downloadOrBuildPurescript({
 		baseUrl: 'http://localhost:3018',
 		version: '0.11.7',
 		rename(originalName) {
@@ -217,51 +221,25 @@ const server = createServer(({url}, res) => {
 		complete: fail
 	});
 
-	downloadOrBuildPurescript(__filename).subscribe({
-		next({id}) {
-			if (id === 'head') {
-				t.pass('should start `head` step even when the target path is invalid.');
-				return;
-			}
-
-			if (id === 'head:complete') {
-				t.pass('should finish `head` step even when the target path is invalid.');
-			}
-		},
-		error({code}) {
+	downloadOrBuildPurescript({rename: () => basename(anotherTmpDir)}).subscribe({
+		error(err) {
 			t.equal(
-				code,
-				'EEXIST',
-				'should fail when it cannot create a directory to the target path.'
+				err.toString(),
+				`Error: Tried to create a PureScript binary at ${anotherTmpDir}, but a directory already exists there.`,
+				'should fail when a directory already exits in the target binary path.'
 			);
 		}
 	});
 
-	const subscriptionImmediatelyCanceled = downloadOrBuildPurescript(__filename).subscribe({
-		next({id}) {
-			if (id === 'head') {
-				t.pass('should start `head` step even if the download is immediately canceled.');
-			}
-		},
-		error: t.fail
-	});
-
-	setImmediate(() => subscriptionImmediatelyCanceled.unsubscribe());
-
 	pretendPlatform('aix');
+	process.chdir(anotherTmpDir);
 
-	const anotherTmpDir = join(__dirname, 'tmp', 'built_binary');
-	const sourceDir = join(__dirname, 'tmp', '_');
 	const setupOutput = [];
 	const nums = Array.from({length: 20}, (v, k) => Math.floor((k + 1) * 7.5));
 	const logRegexps = nums.map(num => new RegExp(`^\\[ *${num} of \\d+\\] Compiling (Language|Paths_purescript)`, 'u'));
 
-	downloadOrBuildPurescript(anotherTmpDir, {
-		sourceDir,
-		args: [
-			'--fast',
-			'--no-test'
-		],
+	downloadOrBuildPurescript({
+		args: ['--fast', '--no-test'],
 		rename: originalName => `${originalName}.bin`
 	}).subscribe({
 		async next({entry, error, id, output}) {
@@ -334,10 +312,7 @@ const server = createServer(({url}, res) => {
 		complete() {
 			pretendPlatform('sunos');
 
-			downloadOrBuildPurescript(join(__dirname, 'tmp', 'dry_run'), {
-				args: ['--dry-run'],
-				rename: () => 'failed_bin'
-			}).subscribe({
+			downloadOrBuildPurescript({args: ['--dry-run']}).subscribe({
 				error({id, message}) {
 					t.ok(
 						message.includes('no such file or directory, rename'),
@@ -357,45 +332,12 @@ const server = createServer(({url}, res) => {
 	});
 
 	pretendPlatform.restore();
-
-	downloadOrBuildPurescript(__dirname, {rename: () => 'node_modules'}).subscribe({
-		error(err) {
-			t.equal(
-				err.toString(),
-				`Error: Tried to create a file as ${
-					join(__dirname, 'node_modules')
-				}, but a directory with the same name already exists.`,
-				'should fail when a directory already exits in the target binary path.'
-			);
-		}
-	});
 }));
 
 test('Argument validation', t => {
-	t.plan(10);
+	t.plan(7);
 
-	downloadOrBuildPurescript(new Set()).subscribe({
-		error(err) {
-			t.equal(
-				err.toString(),
-				'TypeError: Expected a path where the PureScript binary will be installed, but got Set {}.',
-				'should fail when the first argument is not a string.'
-			);
-		}
-	});
-
-	downloadOrBuildPurescript('').subscribe({
-		error(err) {
-			t.equal(
-				err.toString(),
-				'Error: Expected a path where the PureScript binary will be installed, ' +
-        'but got \'\' (empty string).',
-				'should fail when the first argument is an empty string.'
-			);
-		}
-	});
-
-	downloadOrBuildPurescript('.', ['H', 'i']).subscribe({
+	downloadOrBuildPurescript(['H', 'i']).subscribe({
 		error(err) {
 			t.equal(
 				err.toString(),
@@ -406,7 +348,7 @@ test('Argument validation', t => {
 		}
 	});
 
-	downloadOrBuildPurescript('.', {rename: String.fromCharCode(0)}).subscribe({
+	downloadOrBuildPurescript({rename: String.fromCharCode(0)}).subscribe({
 		error(err) {
 			t.equal(
 				err.toString(),
@@ -416,7 +358,7 @@ test('Argument validation', t => {
 		}
 	});
 
-	downloadOrBuildPurescript('.', {rename: originalName => originalName.length}).subscribe({
+	downloadOrBuildPurescript({rename: originalName => originalName.length}).subscribe({
 		error(err) {
 			t.equal(
 				err.toString(),
@@ -430,7 +372,7 @@ test('Argument validation', t => {
 
 	pretendPlatform('win32');
 
-	importFresh('.')('.', {
+	importFresh('.')({
 		rename(originalName) {
 			return originalName.replace('purs.exe', '');
 		}
@@ -447,7 +389,7 @@ test('Argument validation', t => {
 
 	pretendPlatform.restore();
 
-	downloadOrBuildPurescript('.', {args: new Uint16Array()}).subscribe({
+	downloadOrBuildPurescript({args: new Uint16Array()}).subscribe({
 		error(err) {
 			t.equal(
 				err.toString(),
@@ -458,7 +400,7 @@ test('Argument validation', t => {
 		}
 	});
 
-	downloadOrBuildPurescript('.', {filter: NaN}).subscribe({
+	downloadOrBuildPurescript({filter: NaN}).subscribe({
 		error(err) {
 			t.equal(
 				err.toString(),
@@ -468,21 +410,11 @@ test('Argument validation', t => {
 		}
 	});
 
-	downloadOrBuildPurescript().subscribe({
+	downloadOrBuildPurescript({}, {}).subscribe({
 		error(err) {
 			t.equal(
 				err.toString(),
-				'RangeError: Expected 1 or 2 arguments (<string>[, <Object>]), but got no arguments.',
-				'should fail when it takes no arguments.'
-			);
-		}
-	});
-
-	downloadOrBuildPurescript('.', {}, '.').subscribe({
-		error(err) {
-			t.equal(
-				err.toString(),
-				'RangeError: Expected 1 or 2 arguments (<string>[, <Object>]), but got 3 arguments.',
+				'RangeError: Expected 0 or 1 argument ([<Object>]), but got 2 arguments.',
 				'should fail when it takes too many arguments.'
 			);
 		}
