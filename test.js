@@ -119,7 +119,7 @@ const server = createServer(({url}, res) => {
 
 			t.equal(
 				(await promisifiedExecFile(join(tmpDir, DEFAULT_NAME), ['--version'])).stdout,
-				`0.12.2${EOL}`,
+				`0.12.3${EOL}`,
 				'should download the binary correctly.'
 			);
 		}
@@ -288,7 +288,7 @@ const server = createServer(({url}, res) => {
 			if (id === 'build:complete') {
 				t.equal(
 					(await promisifiedExecFile(join(anotherTmpDir, `${DEFAULT_NAME}.bin`), ['--version'])).stdout,
-					`0.12.2${EOL}`,
+					`0.12.3${EOL}`,
 					'should build the binary when the prebuilt binary is not provided for the current platform.'
 				);
 

@@ -11,7 +11,7 @@ const {readdir} = require('fs').promise;
 const {execFile} = require('child_process');
 const downloadOrBuildPurescript = require('download-or-build-purescript');
 
-downloadOrBuildPurescript({version: '0.12.2'}).subscribe({
+downloadOrBuildPurescript({version: '0.12.3'}).subscribe({
   next(event) {
     if (event.id === 'head:complete') {
       console.log('✓ Prebuilt binary exists.');
@@ -31,7 +31,7 @@ downloadOrBuildPurescript({version: '0.12.2'}).subscribe({
   async complete() {
     await readdirSync('.').includes('purs'); //=> true
     execFile('./purs', ['--version'], (err, stdout) => {
-      stdout.toString(); //=> '0.12.2\n'
+      stdout.toString(); //=> '0.12.3\n'
     });
   }
 });

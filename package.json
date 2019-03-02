@@ -31,7 +31,7 @@
 	],
 	"dependencies": {
 		"build-purescript": "^0.4.0",
-		"download-purescript": "0.8.0",
+		"download-purescript": "^0.8.2",
 		"feint": "^1.0.2",
 		"inspect-with-kind": "^1.0.5",
 		"is-plain-obj": "^1.1.0",
@@ -48,11 +48,11 @@
 		"import-fresh": "^3.0.0",
 		"nyc": "^13.3.0",
 		"nyc-config-common": "^1.0.1",
-		"pretend-platform": "^2.0.2",
+		"pretend-platform": "^3.0.0",
 		"readdir-sorted": "^2.1.0",
 		"rmfr": "^2.0.0",
 		"tape": "^4.10.1",
-		"tar-stream": "^2.0.0",
+		"tar-stream": "^2.0.1",
 		"to-executable-name": "^2.0.0"
 	},
 	"eslintConfig": {
