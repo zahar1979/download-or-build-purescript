@@ -13,4 +13,5 @@ jobs:
     cache:
       directories: C:\s
     before_install: choco install haskell-stack
+    before_script: stack setup 8.4.3 --no-reinstall > nul # https://stackage.org/lts-12.0
     script: node test.js
