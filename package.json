@@ -1,6 +1,6 @@
 {
 	"name": "download-or-build-purescript",
-	"version": "0.3.1",
+	"version": "0.3.2",
 	"description": "First try to download a prebuilt PureScript binary, then build from a source if the prebuilt one is unavailable",
 	"author": "Shinnosuke Watanabe (https://github.com/shinnn)",
 	"repository": "shinnn/download-or-build-purescript",
@@ -31,7 +31,7 @@
 	],
 	"dependencies": {
 		"build-purescript": "^0.4.0",
-		"download-purescript": "^0.8.2",
+		"download-purescript": "^0.8.3",
 		"feint": "^1.0.2",
 		"inspect-with-kind": "^1.0.5",
 		"is-plain-obj": "^1.1.0",
@@ -43,8 +43,8 @@
 		"zen-observable": "^0.8.13"
 	},
 	"devDependencies": {
-		"@shinnn/eslint-config": "^6.9.0",
-		"eslint": "^5.14.1",
+		"@shinnn/eslint-config": "^6.9.1",
+		"eslint": "^5.15.3",
 		"import-fresh": "^3.0.0",
 		"nyc": "^13.3.0",
 		"nyc-config-common": "^1.0.1",
