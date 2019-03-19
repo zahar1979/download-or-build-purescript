@@ -294,9 +294,6 @@ Options are directly passed to [`download-purescript`](https://github.com/shinnn
 
 * `filter` option is not supported.
 * `revision` option is not supported. Use `version` option instead.
-* When the [`platform` option](https://github.com/shinnn/download-purescript#platform) is specified to the different platform:
-  - `check-binary` and `check-binary:complete` steps will be skipped.
-  - `*:fail` steps will be skipped and it just pass the error to its `Observer`.
 
 Additionally, you can use the following:
 

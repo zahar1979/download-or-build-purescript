@@ -184,7 +184,7 @@ const server = createServer(({url}, res) => {
 		next({error, id, path, version}) {
 			if (id === 'check-binary:fail') {
 				t.ok(
-					/spawn .+ (EACCES|ENOENT)/u.test(error.message),
+					/spawn .+ (?:EACCES|ENOENT)/u.test(error.message),
 					'should send `check-binary:fail` progress when a downloaded binary is broken.'
 				);
 
@@ -335,7 +335,7 @@ const server = createServer(({url}, res) => {
 }));
 
 test('Argument validation', t => {
-	t.plan(7);
+	t.plan(8);
 
 	downloadOrBuildPurescript(['H', 'i']).subscribe({
 		error(err) {
@@ -348,7 +348,7 @@ test('Argument validation', t => {
 		}
 	});
 
-	downloadOrBuildPurescript({rename: String.fromCharCode(0)}).subscribe({
+	downloadOrBuildPurescript({rename: '\0'}).subscribe({
 		error(err) {
 			t.equal(
 				err.toString(),
@@ -366,6 +366,16 @@ test('Argument validation', t => {
 					DEFAULT_NAME.length
 				} (number).`,
 				'should fail when `rename` option returns a non-string value.'
+			);
+		}
+	});
+
+	downloadOrBuildPurescript({rename: () => '\0\0'}).subscribe({
+		error({code}) {
+			t.equal(
+				code,
+				'ERR_INVALID_ARG_VALUE',
+				'should fail when `rename` option returns a string containing null bytes.'
 			);
 		}
 	});

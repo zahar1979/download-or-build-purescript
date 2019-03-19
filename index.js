@@ -218,7 +218,11 @@ module.exports = function downloadOrBuildPurescript(...args) {
 				(async () => {
 					try {
 						return await promisify(stat)(binPath);
-					} catch (_) {
+					} catch (err) {
+						if (err.code === 'ERR_INVALID_ARG_VALUE') {
+							observer.error(err);
+						}
+
 						return null;
 					}
 				})(),
