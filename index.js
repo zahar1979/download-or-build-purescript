@@ -148,7 +148,7 @@ module.exports = function downloadOrBuildPurescript(...args) {
 			stackCheckResult.path = stackPath;
 
 			try {
-				stackCheckResult.version = (await spawnStack(['--numeric-version'], options)).stdout;
+				stackCheckResult.version = (await spawnStack(['--numeric-version'], {timeout: 8000, ...options})).stdout;
 			} catch (err) {
 				stackCheckResult.error = err;
 			}
