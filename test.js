@@ -29,6 +29,9 @@ const server = createServer(({url}, res) => {
 	if (url.includes('broken')) {
 		tar.entry({name: 'broken/purs'}, 'broken');
 		tar.push('broken');
+	} else if (url.includes('empty')) {
+		tar.entry({name: 'broken/purs'}, 'broken');
+		tar.push('broken');
 	} else {
 		tar.entry({name: 'dir/purs'}, 'not a binary');
 	}

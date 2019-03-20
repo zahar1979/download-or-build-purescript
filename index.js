@@ -176,26 +176,26 @@ module.exports = function downloadOrBuildPurescript(...args) {
 
 				sendError(err, 'head');
 			},
-			complete() {
+			async complete() {
 				observer.next({id: 'download-binary:complete'});
 				observer.next({id: 'check-binary'});
-				execFile(binPath, ['--version'], {timeout: 50000, ...options}, (err, stdout, stderr) => {
-					if (err) {
-						err.message += `\n${stderr}`;
-						addId(err, 'check-binary');
 
-						observer.next({
-							id: 'check-binary:fail',
-							error: err
-						});
+				try {
+					await promisify(execFile)(binPath, ['--version'], {timeout: 8000, ...options});
+				} catch (err) {
+					addId(err, 'check-binary');
 
-						startBuildIfNeeded();
-						return;
-					}
+					observer.next({
+						id: 'check-binary:fail',
+						error: err
+					});
 
-					observer.next({id: 'check-binary:complete'});
-					observer.complete();
-				});
+					startBuildIfNeeded();
+					return;
+				}
+
+				observer.next({id: 'check-binary:complete'});
+				observer.complete();
 			}
 		});
 
